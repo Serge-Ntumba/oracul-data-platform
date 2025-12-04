@@ -1,0 +1,88 @@
+# name: CI
+
+# on:
+#   push:
+#     branches: [ main, develop ]
+#   pull_request:
+#     branches: [ main, develop ]
+
+# jobs:
+#   lint:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v3
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: '3.11'
+
+#       - name: Install dependencies
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install black isort flake8 mypy
+
+#       - name: Format check with black
+#         run: black --check .
+
+#       - name: Import order check with isort
+#         run: isort --check-only .
+
+#       - name: Lint with flake8
+#         run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+#   test-api:
+#     runs-on: ubuntu-latest
+#     services:
+#       clickhouse:
+#         image: clickhouse/clickhouse-server:latest
+#         ports:
+#           - 9000:9000
+#           - 8123:8123
+
+#     steps:
+#       - uses: actions/checkout@v3
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: '3.11'
+
+#       - name: Install API dependencies
+#         run: |
+#           cd api
+#           pip install -r requirements.txt
+#           pip install pytest pytest-cov
+
+#       - name: Run API tests
+#         run: |
+#           cd api
+#           pytest tests/ -v --cov=app
+
+#   test-integration:
+#     runs-on: ubuntu-latest
+#     services:
+#       clickhouse:
+#         image: clickhouse/clickhouse-server:latest
+#         ports:
+#           - 9000:9000
+#       kafka:
+#         image: confluentinc/cp-kafka:latest
+#         ports:
+#           - 9092:9092
+
+#     steps:
+#       - uses: actions/checkout@v3
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: '3.11'
+
+#       - name: Install test dependencies
+#         run: |
+#           pip install -r tests/requirements.txt
+
+#       - name: Run integration tests
+#         run: |
+#           pytest tests/integration/ -v

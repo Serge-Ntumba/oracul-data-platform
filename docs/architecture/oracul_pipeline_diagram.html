@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oracul Pipeline Architecture</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0b0f;
+            --bg-card: #12141c;
+            --bg-card-hover: #1a1d28;
+            --accent-blue: #3b82f6;
+            --accent-cyan: #06b6d4;
+            --accent-purple: #8b5cf6;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-pink: #ec4899;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border-color: #1e293b;
+            --glow-blue: rgba(59, 130, 246, 0.4);
+            --glow-cyan: rgba(6, 182, 212, 0.4);
+            --glow-purple: rgba(139, 92, 246, 0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .noise-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.03;
+            z-index: 1000;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        }
+
+        .grid-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+        }
+
+        header {
+            padding: 3rem 4rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .logo {
+            font-family: 'Syne', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .pipeline-container {
+            padding: 2rem 4rem 4rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .pipeline-row {
+            display: flex;
+            align-items: stretch;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .section-label {
+            position: absolute;
+            left: -2rem;
+            top: 50%;
+            transform: translateY(-50%) rotate(-90deg);
+            font-family: 'Syne', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .stage {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .stage-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .stage-icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .stage-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+
+        .component-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .component {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 1rem;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+
+        .component::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 3px;
+            height: 100%;
+            opacity: 0.8;
+        }
+
+        .component:hover {
+            background: var(--bg-card-hover);
+            transform: translateX(4px);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .component-name {
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .component-desc {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .component-tag {
+            font-size: 0.6rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            display: inline-block;
+        }
+
+        /* Source styling */
+        .source .component::before { background: var(--accent-cyan); }
+        .source .stage-icon { background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); }
+
+        /* Ingestion styling */
+        .ingestion .component::before { background: var(--accent-blue); }
+        .ingestion .stage-icon { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+
+        /* Streaming styling */
+        .streaming .component::before { background: var(--accent-purple); }
+        .streaming .stage-icon { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
+
+        /* Storage styling */
+        .storage .component::before { background: var(--accent-orange); }
+        .storage .stage-icon { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
+
+        /* Orchestration styling */
+        .orchestration .component::before { background: var(--accent-green); }
+        .orchestration .stage-icon { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+
+        /* Serving styling */
+        .serving .component::before { background: var(--accent-pink); }
+        .serving .stage-icon { background: rgba(236, 72, 153, 0.15); color: var(--accent-pink); }
+
+        .flow-arrows {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem 0;
+            position: relative;
+        }
+
+        .arrow-line {
+            height: 2px;
+            flex: 1;
+            background: linear-gradient(90deg, 
+                transparent, 
+                var(--accent-cyan) 10%, 
+                var(--accent-blue) 30%,
+                var(--accent-purple) 50%,
+                var(--accent-orange) 70%,
+                var(--accent-green) 90%,
+                transparent
+            );
+            position: relative;
+            opacity: 0.5;
+        }
+
+        .arrow-line::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: inherit;
+            filter: blur(8px);
+            transform: translateY(-50%);
+        }
+
+        .data-pulse {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            animation: pulse-flow 3s ease-in-out infinite;
+            box-shadow: 0 0 20px var(--glow-cyan);
+        }
+
+        @keyframes pulse-flow {
+            0% { left: 0%; opacity: 0; transform: scale(0.5); }
+            10% { opacity: 1; transform: scale(1); }
+            90% { opacity: 1; transform: scale(1); }
+            100% { left: 100%; opacity: 0; transform: scale(0.5); }
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            padding: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin: 2rem 4rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .tables-section {
+            padding: 0 4rem;
+            margin-top: 3rem;
+        }
+
+        .tables-header {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .tables-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+
+        .table-category {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 1.25rem;
+        }
+
+        .table-category-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table-item {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            padding: 0.4rem 0;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .table-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.65rem;
+            color: var(--accent-green);
+            margin-left: auto;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: blink 2s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .version-badge {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            z-index: 100;
+        }
+
+        @media (max-width: 1200px) {
+            .pipeline-row {
+                flex-wrap: wrap;
+            }
+            .stage {
+                min-width: calc(50% - 1rem);
+            }
+            .tables-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            header, .pipeline-container, .legend, .tables-section {
+                padding-left: 1.5rem;
+                padding-right: 1.5rem;
+            }
+            .stage {
+                min-width: 100%;
+            }
+            .tables-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="noise-overlay"></div>
+    <div class="grid-bg"></div>
+
+    <header>
+        <div class="logo">ORACUL</div>
+        <div class="subtitle">Blockchain Data Platform Architecture • v1.0 MVP</div>
+    </header>
+
+    <div class="pipeline-container">
+        <div class="pipeline-row">
+            <!-- Sources -->
+            <div class="stage source">
+                <div class="stage-header">
+                    <div class="stage-icon">⛓</div>
+                    <div class="stage-title">DATA SOURCES</div>
+                </div>
+                <div class="component-grid">
+                    <div class="component">
+                        <div class="component-name">
+                            Ethereum RPC
+                            <span class="status-indicator"><span class="status-dot"></span>LIVE</span>
+                        </div>
+                        <div class="component-desc">Blocks, transactions, logs via Alchemy/Infura</div>
+                        <div class="component-tag">≤5 min lag</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">Spot Price API</div>
+                        <div class="component-desc">ETH + Top N tokens via CoinGecko / CEX</div>
+                        <div class="component-tag">1 min frequency</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ingestion -->
+            <div class="stage ingestion">
+                <div class="stage-header">
+                    <div class="stage-icon">⚡</div>
+                    <div class="stage-title">COLLECTORS</div>
+                </div>
+                <div class="component-grid">
+                    <div class="component">
+                        <div class="component-name">block_scanner</div>
+                        <div class="component-desc">Ingests block headers & metadata</div>
+                        <div class="component-tag">Python</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">tx_and_logs_scanner</div>
+                        <div class="component-desc">Transactions + receipt logs</div>
+                        <div class="component-tag">Python</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">price_collector</div>
+                        <div class="component-desc">Market prices polling</div>
+                        <div class="component-tag">Python</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Streaming -->
+            <div class="stage streaming">
+                <div class="stage-header">
+                    <div class="stage-icon">≋</div>
+                    <div class="stage-title">STREAMING</div>
+                </div>
+                <div class="component-grid">
+                    <div class="component">
+                        <div class="component-name">eth.blocks.raw</div>
+                        <div class="component-desc">Block data topic</div>
+                        <div class="component-tag">Kafka</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">eth.transactions.raw</div>
+                        <div class="component-desc">Transaction data topic</div>
+                        <div class="component-tag">Kafka</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">eth.logs.raw</div>
+                        <div class="component-desc">Event logs topic</div>
+                        <div class="component-tag">Kafka</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">market.prices.raw</div>
+                        <div class="component-desc">Price feed topic</div>
+                        <div class="component-tag">Kafka</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Storage -->
+            <div class="stage storage">
+                <div class="stage-header">
+                    <div class="stage-icon">◉</div>
+                    <div class="stage-title">WAREHOUSE</div>
+                </div>
+                <div class="component-grid">
+                    <div class="component">
+                        <div class="component-name">ClickHouse Cluster</div>
+                        <div class="component-desc">Raw → Curated → Aggregated → Derived tables</div>
+                        <div class="component-tag">500M+ rows scale</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">Partitioning</div>
+                        <div class="component-desc">By toDate(timestamp)</div>
+                        <div class="component-tag">Retention policies</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flow-arrows">
+            <div class="arrow-line">
+                <div class="data-pulse"></div>
+            </div>
+        </div>
+
+        <div class="pipeline-row">
+            <!-- Orchestration -->
+            <div class="stage orchestration" style="flex: 2;">
+                <div class="stage-header">
+                    <div class="stage-icon">⟳</div>
+                    <div class="stage-title">ORCHESTRATION (AIRFLOW)</div>
+                </div>
+                <div class="component-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
+                    <div class="component">
+                        <div class="component-name">normalize_erc20_dag</div>
+                        <div class="component-desc">Decode ERC-20 transfers</div>
+                        <div class="component-tag">Every 15 min</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">token_metrics_daily_dag</div>
+                        <div class="component-desc">Aggregate token metrics</div>
+                        <div class="component-tag">Daily 01:00 UTC</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">address_flows_daily_dag</div>
+                        <div class="component-desc">Compute address flows</div>
+                        <div class="component-tag">Daily 01:30 UTC</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">anomaly_detection_dag</div>
+                        <div class="component-desc">Z-score, IQR, IsolationForest</div>
+                        <div class="component-tag">Daily 02:00 UTC</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">data_quality_dag</div>
+                        <div class="component-desc">Gaps, duplicates, freshness</div>
+                        <div class="component-tag">Hourly</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">ingestion_monitoring_dag</div>
+                        <div class="component-desc">Collector health + Kafka lag</div>
+                        <div class="component-tag">Every 5 min</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Serving -->
+            <div class="stage serving">
+                <div class="stage-header">
+                    <div class="stage-icon">◈</div>
+                    <div class="stage-title">SERVING</div>
+                </div>
+                <div class="component-grid">
+                    <div class="component">
+                        <div class="component-name">BI Dashboards</div>
+                        <div class="component-desc">Superset / Metabase overview, token & address drilldowns</div>
+                        <div class="component-tag">Internal</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">REST API</div>
+                        <div class="component-desc">/tokens, /anomalies, /health endpoints</div>
+                        <div class="component-tag">FastAPI</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-name">Alerts</div>
+                        <div class="component-desc">Pipeline failures + high-severity anomalies</div>
+                        <div class="component-tag">Slack / Telegram</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-dot" style="background: var(--accent-cyan);"></div>
+            Sources
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background: var(--accent-blue);"></div>
+            Collectors
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background: var(--accent-purple);"></div>
+            Streaming
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background: var(--accent-orange);"></div>
+            Storage
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background: var(--accent-green);"></div>
+            Orchestration
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background: var(--accent-pink);"></div>
+            Serving
+        </div>
+    </div>
+
+    <div class="tables-section">
+        <div class="tables-header">ClickHouse Table Hierarchy</div>
+        <div class="tables-grid">
+            <div class="table-category">
+                <div class="table-category-title" style="color: var(--accent-cyan);">Raw Tables</div>
+                <div class="table-item">raw_blocks</div>
+                <div class="table-item">raw_transactions</div>
+                <div class="table-item">raw_logs</div>
+                <div class="table-item">prices_spot</div>
+            </div>
+            <div class="table-category">
+                <div class="table-category-title" style="color: var(--accent-blue);">Curated Tables</div>
+                <div class="table-item">erc20_transfers</div>
+            </div>
+            <div class="table-category">
+                <div class="table-category-title" style="color: var(--accent-purple);">Aggregated Tables</div>
+                <div class="table-item">token_metrics_daily</div>
+                <div class="table-item">address_flows_daily</div>
+            </div>
+            <div class="table-category">
+                <div class="table-category-title" style="color: var(--accent-green);">Derived Tables</div>
+                <div class="table-item">anomalies</div>
+                <div class="table-item">data_quality_checks</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="version-badge">
+        ORACUL v1.0 • MVP Phase • 8-12 weeks
+    </div>
+</body>
+</html>

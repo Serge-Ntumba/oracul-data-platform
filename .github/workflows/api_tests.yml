@@ -1,0 +1,48 @@
+# name: API Tests
+
+# on:
+#   push:
+#     paths:
+#       - 'api/**'
+#   pull_request:
+#     paths:
+#       - 'api/**'
+
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+
+#     services:
+#       clickhouse:
+#         image: clickhouse/clickhouse-server:latest
+#         ports:
+#           - 9000:9000
+#           - 8123:8123
+
+#     steps:
+#       - uses: actions/checkout@v3
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: '3.11'
+
+#       - name: Install dependencies
+#         run: |
+#           cd api
+#           pip install -r requirements.txt
+#           pip install pytest pytest-cov
+
+#       - name: Run tests
+#         env:
+#           CLICKHOUSE_HOST: localhost
+#           CLICKHOUSE_PORT: 9000
+#         run: |
+#           cd api
+#           pytest tests/ -v --cov=app --cov-report=xml
+
+#       - name: Upload coverage
+#         uses: codecov/codecov-action@v3
+#         with:
+#           file: ./api/coverage.xml
+#           flags: api

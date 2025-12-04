@@ -1,0 +1,371 @@
+1. Top-level structure (bird’s-eye view)
+oracul-platform/
+├── infra/              # Infra-as-code, docker-compose, k8s, terraform, etc.
+├── config/             # Centralised configs: env vars, connection profiles, token lists
+├── dwh/                # ClickHouse schemas, migrations, seed data
+├── ingestion/          # Python collectors + Kafka producers
+├── pipelines/          # Airflow DAGs + shared pipeline code
+├── api/                # FastAPI service(s) to serve metrics & anomalies
+├── analytics/          # Notebooks, experiments, DS models
+├── docs/               # Architecture docs, ADRs, diagrams, PRD
+├── scripts/            # Helper scripts for dev, bootstrap, utilities
+├── tests/              # Cross-project tests (integration, e2e, load)
+└── .github/ or .ci/    # CI pipelines
+
+
+Now let’s go folder by folder in enough detail that engineers can literally start creating files.
+
+2. infra/ – infrastructure & environments
+
+Goal: engineers and DevOps know where everything infra-related lives.
+
+infra/
+├── docker-compose/
+│   ├── docker-compose.dev.yml
+│   ├── docker-compose.local.yml
+│   └── docker-compose.prod.yml           # Optional, if you do prod via compose
+├── k8s/
+│   ├── base/
+│   │   ├── clickhouse/
+│   │   ├── kafka/
+│   │   ├── airflow/
+│   │   ├── api/
+│   │   └── monitoring/
+│   ├── overlays/
+│   │   ├── dev/
+│   │   ├── staging/
+│   │   └── prod/
+├── terraform/                            # If you provision cloud infra
+│   ├── modules/
+│   ├── envs/
+│   │   ├── dev/
+│   │   ├── staging/
+│   │   └── prod/
+└── ansible/                              # Optional; OS-level config if needed
+
+
+Key decisions:
+
+K8s overlays (dev/stage/prod) keep env differences minimal and explicit.
+
+docker-compose.dev.yml should bring up:
+
+ClickHouse
+
+Kafka + Zookeeper
+
+Airflow
+
+FastAPI
+
+Superset/Metabase
+…so anyone can run the platform locally with one command.
+
+3. config/ – configuration & environment profiles
+
+Goal: no hardcoded secrets / URLs / topics inside business code.
+
+config/
+├── base/
+│   ├── clickhouse.yml         # Host, port, db, user (no secrets)
+│   ├── kafka.yml              # Brokers, topics, consumer groups
+│   ├── airflow.yml
+│   ├── api.yml
+│   ├── chains.yml             # Which chains are enabled, chain IDs, RPC names
+│   └── tokens.yml             # Known tokens, decimals, symbols
+├── env/
+│   ├── dev/
+│   │   ├── .env               # Local dev secrets (ignored from git)
+│   ├── staging/
+│   │   └── .env
+│   └── prod/
+│       └── .env
+└── README.md                  # How to manage configs and secrets
+
+
+chains.yml example:
+
+chains:
+  eth_mainnet:
+    chain_id: 1
+    rpc_alias: "alchemy_eth_mainnet"
+    enabled: true
+  arbitrum:
+    chain_id: 42161
+    rpc_alias: "alchemy_arbitrum"
+    enabled: false   # for later
+
+4. dwh/ – ClickHouse schemas & migrations
+
+Goal: all DDL is versioned and grouped logically (raw → curated → marts).
+
+dwh/
+├── schemas/
+│   ├── raw/
+│   │   ├── raw_blocks.sql
+│   │   ├── raw_transactions.sql
+│   │   ├── raw_logs.sql
+│   │   └── prices_spot.sql
+│   ├── curated/
+│   │   ├── erc20_transfers.sql
+│   │   └── ...
+│   ├── marts/
+│   │   ├── token_metrics_daily.sql
+│   │   ├── address_flows_daily.sql
+│   │   └── ...
+│   ├── meta/
+│   │   ├── anomalies.sql
+│   │   └── data_quality_checks.sql
+├── migrations/
+│   ├── 0001_init_raw_tables.sql
+│   ├── 0002_add_erc20_transfers.sql
+│   ├── 0003_add_daily_metrics.sql
+│   └── ...
+├── seeds/
+│   ├── erc20_token_metadata.csv
+│   └── chain_metadata.csv
+└── README.md
+
+
+Engineers always:
+
+Add/modify schema via migrations.
+
+Keep schemas/ as current complete picture.
+
+5. ingestion/ – collectors & Kafka producers
+
+Goal: each logical ingestion service has its own folder, but shares common utilities.
+
+ingestion/
+├── common/
+│   ├── __init__.py
+│   ├── config.py           # load config/env, manage secrets
+│   ├── kafka_client.py     # unified producer wrapper
+│   ├── logging.py
+│   ├── metrics.py          # Prometheus client, etc.
+│   └── state_store.py      # "last processed block" etc.
+├── chains/
+│   ├── eth_mainnet/
+│   │   ├── __init__.py
+│   │   ├── block_scanner.py
+│   │   ├── tx_receipt_scanner.py
+│   │   ├── log_scanner.py
+│   │   └── config.yml      # RPC URL, batch size, start block, etc.
+│   └── <other_chain>/
+├── market_data/
+│   ├── __init__.py
+│   ├── price_collector.py
+│   ├── orderbook_collector.py (future)
+│   └── config.yml
+├── docker/
+│   ├── Dockerfile.ingestion
+│   └── startup.sh
+└── README.md
+
+
+State management (last processed block) is centralised in state_store.py and can use:
+
+ClickHouse meta table,
+
+Redis,
+
+or a small file in dev environments.
+
+6. pipelines/ – Airflow & shared ETL logic
+
+This is where Airflow DAGs + pipeline code live.
+
+pipelines/
+├── dags/
+│   ├── __init__.py
+│   ├── normalize_erc20_dag.py
+│   ├── token_metrics_daily_dag.py
+│   ├── address_flows_daily_dag.py
+│   ├── anomaly_detection_dag.py
+│   ├── data_quality_dag.py
+│   └── ingestion_monitoring_dag.py
+├── jobs/                   # "Unit of work" for DAG tasks
+│   ├── __init__.py
+│   ├── normalization/
+│   │   ├── normalize_erc20.py
+│   │   └── ...
+│   ├── aggregates/
+│   │   ├── compute_token_metrics_daily.py
+│   │   ├── compute_address_flows_daily.py
+│   ├── anomalies/
+│   │   ├── detect_token_volume_anomalies.py
+│   │   └── detect_address_flow_anomalies.py
+│   ├── dq/
+│   │   ├── check_block_gaps.py
+│   │   ├── check_tx_duplicates.py
+│   │   └── ...
+├── libs/                   # Shared Python libs for pipelines
+│   ├── __init__.py
+│   ├── clickhouse_client.py
+│   ├── sql/
+│   │   ├── token_metrics_daily.sql
+│   │   ├── address_flows_daily.sql
+│   │   └── helpers.sql
+│   ├── anomaly_utils.py    # z-score, IQR, etc.
+│   ├── dq_utils.py
+│   └── time_utils.py
+├── airflow_config/
+│   ├── airflow.cfg
+│   ├── requirements.txt
+│   └── connections_example.json
+└── README.md
+
+
+Important idea:
+DAGs (dags/*.py) should be thin and just orchestrate calls to functions in jobs/.
+All heavy logic sits in jobs/ and libs/ → easier unit tests, reuse.
+
+7. api/ – serving metrics & anomalies (FastAPI)
+
+Goal: decouple serving from pipelines.
+
+api/
+├── app/
+│   ├── __init__.py
+│   ├── main.py                   # FastAPI entry
+│   ├── routes/
+│   │   ├── __init__.py
+│   │   ├── health.py
+│   │   ├── tokens.py
+│   │   ├── anomalies.py
+│   │   └── addresses.py
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── token_metrics.py      # Pydantic response models
+│   │   ├── anomaly.py
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── clickhouse_service.py
+│   │   └── metrics_service.py
+│   ├── config.py
+│   └── deps.py                   # dependencies (db session, auth)
+├── tests/
+│   ├── test_tokens_endpoints.py
+│   └── test_anomalies_endpoints.py
+├── Dockerfile
+└── README.md
+
+
+routes/:
+
+tokens.py implements /tokens/{token}/metrics/daily.
+
+anomalies.py implements /anomalies.
+
+8. analytics/ – notebooks & DS experiments
+
+Goal: give quants & DS a home that’s separate from production ETL.
+
+analytics/
+├── notebooks/
+│   ├── 01_explore_erc20_transfers.ipynb
+│   ├── 02_token_volume_anomalies.ipynb
+│   └── 03_address_flows_use_cases.ipynb
+├── experiments/
+│   ├── token_anomaly_iforest/
+│   │   ├── experiment.py
+│   │   ├── results.md
+│   │   └── config.json
+│   └── address_anomaly_dbscan/
+├── libs/
+│   ├── __init__.py
+│   ├── clickhouse_reader.py
+│   └── feature_engineering.py
+└── README.md
+
+
+When an experiment graduates to production, its core logic should move into pipelines/jobs/anomalies/.
+
+9. docs/ – knowledge, decisions, diagrams
+
+Goal: make reasoning and decisions discoverable, especially for new hires.
+
+docs/
+├── product/
+│   ├── PRD_oracul_platform_v1.md
+│   └── roadmap.md
+├── architecture/
+│   ├── high_level_overview.md
+│   ├── data_flow.md
+│   ├── oracul_pipeline_diagram.html
+│   └── component_responsibilities.md
+├── adr/                      # Architecture Decision Records
+│   ├── 0001_use_clickhouse.md
+│   ├── 0002_use_kafka_for_ingestion.md
+│   ├── 0003_choose_airflow_for_orchestration.md
+│   └── ...
+└── runbooks/
+    ├── oncall_playbook.md
+    ├── how_to_backfill_data.md
+    └── how_to_add_new_chain.md
+
+
+ADRs keep track of why you chose ClickHouse/Kafka/Airflow etc.
+
+10. scripts/ – utilities & dev helpers
+
+Goal: common CLI scripts, not lost in random places.
+
+scripts/
+├── bootstrap_dev.sh         # Start dev environment, load minimal data
+├── load_sample_data.py      # Insert sample rows into ClickHouse
+├── backfill_erc20.py        # One-off backfills
+├── run_tests.sh
+└── README.md
+
+11. tests/ – cross-component tests
+
+You’ll also have tests inside specific apps (api/tests, maybe pipelines/tests), but a root-level tests/ can hold integration & end-to-end tests.
+
+tests/
+├── integration/
+│   ├── test_ingestion_to_raw_tables.py     # Kafka → ClickHouse path
+│   ├── test_raw_to_erc20_transfers.py      # Normalize job
+│   └── test_anomaly_detection_flow.py      # DAG produces anomalies
+├── e2e/
+│   ├── test_full_stack_daily_run.py        # Simulate a daily run end-to-end
+└── load/
+    ├── test_clickhouse_performance.py
+
+12. CI / CD (.github/ or .ci/)
+
+Minimal to start:
+
+Lint & format (black, isort, flake8, mypy if you like).
+
+Run unit tests and integration tests in CI.
+
+Optional: auto-build Docker images for ingestion, pipelines, api.
+
+.github/
+├── workflows/
+│   ├── ci.yml
+│   ├── api_tests.yml
+│   └── pipelines_tests.yml
+
+13. Naming & conventions (for the team)
+
+Some conventions to document and enforce:
+
+Python packages use snake_case, classes CamelCase, functions snake_case.
+
+Kafka topics:
+chain.domain.layer pattern, e.g. eth.blocks.raw, eth.tx.raw, market.prices.raw.
+
+ClickHouse tables grouped by role:
+
+raw_* for raw ingestion.
+
+erc20_* for curated event-level.
+
+*_daily for daily aggregates.
+
+One DAG per major functional pipeline, not “mega DAGs”.
+
+Thin DAGs, fat jobs: orchestrate in DAG, implement in jobs/.

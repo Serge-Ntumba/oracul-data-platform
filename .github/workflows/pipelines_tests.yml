@@ -1,0 +1,40 @@
+# name: Pipeline Tests
+
+# on:
+#   push:
+#     paths:
+#       - 'pipelines/**'
+#   pull_request:
+#     paths:
+#       - 'pipelines/**'
+
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+
+#     services:
+#       clickhouse:
+#         image: clickhouse/clickhouse-server:latest
+#         ports:
+#           - 9000:9000
+
+#     steps:
+#       - uses: actions/checkout@v3
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: '3.11'
+
+#       - name: Install dependencies
+#         run: |
+#           cd pipelines
+#           pip install -r airflow_config/requirements.txt
+#           pip install pytest
+
+#       - name: Run pipeline job tests
+#         env:
+#           CLICKHOUSE_HOST: localhost
+#         run: |
+#           cd pipelines
+#           pytest jobs/ -v
