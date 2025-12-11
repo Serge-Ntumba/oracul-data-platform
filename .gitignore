@@ -79,6 +79,7 @@ docker-compose.override.yml
 
 # Documentation (generated)
 docs/
+docs
 
 # Claude Code
 .claude/
