@@ -1,0 +1,426 @@
+# =============================================================================
+# Oracul Blockchain Data Platform - Development Environment
+# =============================================================================
+# This docker-compose file defines the complete local development stack for
+# the Oracul platform. All services are configured for developer productivity
+# with hot-reload, accessible ports, and reasonable resource limits.
+#
+# Quick Start:
+#   1. Create .env file: cp ../../config/env/dev/.env.example .env
+#   2. Edit .env and add your ALCHEMY_ETH_MAINNET_URL
+#   3. Run: docker-compose up -d
+#   4. Access Airflow: http://localhost:8080 (admin/admin)
+#
+# Services:
+#   - clickhouse-server: OLAP warehouse
+#   - postgres: Airflow & Metabase metadata
+#   - zookeeper: Kafka coordination
+#   - kafka: Message streaming
+#   - kafka-init: Topic initialization (runs once)
+#   - airflow-init: DB initialization (runs once)
+#   - airflow-webserver: Airflow UI
+#   - airflow-scheduler: DAG orchestration
+#   - fastapi-api: REST API
+#   - metabase: BI dashboards
+# =============================================================================
+
+networks:
+  oracul-network:
+    driver: bridge
+    name: oracul-network
+
+volumes:
+  clickhouse_data:
+    name: oracul_clickhouse_data
+  postgres_data:
+    name: oracul_postgres_data
+  kafka_data:
+    name: oracul_kafka_data
+  zookeeper_data:
+    name: oracul_zookeeper_data
+  airflow_logs:
+    name: oracul_airflow_logs
+  metabase_data:
+    name: oracul_metabase_data
+
+# =============================================================================
+# Shared Airflow Configuration
+# =============================================================================
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.7.3-python3.11
+  environment: &airflow-env
+    # Core
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+
+    # Database
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+
+    # Webserver
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW__WEBSERVER__SECRET_KEY}
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
+    AIRFLOW__WEBSERVER__RBAC: 'true'
+
+    # Scheduler
+    AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT: 'false'
+    AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 60
+
+    # Logging
+    AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
+    AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+
+    # Connections (for ClickHouse access)
+    AIRFLOW_CONN_CLICKHOUSE_DEFAULT: clickhouse://oracul_user:${CLICKHOUSE_PASSWORD:-oracul_dev_2024}@clickhouse-server:9000/oracul
+
+    # Python path
+    PYTHONPATH: /opt/airflow:/opt/airflow/libs:/opt/airflow/jobs
+
+  volumes:
+    - ../../pipelines/dags:/opt/airflow/dags
+    - ../../pipelines/libs:/opt/airflow/libs
+    - ../../pipelines/jobs:/opt/airflow/jobs
+    - ../../config:/config:ro
+    - airflow_logs:/opt/airflow/logs
+
+  networks:
+    - oracul-network
+
+  user: "${AIRFLOW_UID:-50000}:0"
+
+# =============================================================================
+# Services
+# =============================================================================
+services:
+
+  # ---------------------------------------------------------------------------
+  # ClickHouse - OLAP Warehouse
+  # ---------------------------------------------------------------------------
+  clickhouse-server:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: oracul_clickhouse
+    hostname: clickhouse-server
+    ports:
+      - "9000:9000"   # Native protocol
+      - "8123:8123"   # HTTP interface
+      - "9363:9363"   # Prometheus metrics
+    environment:
+      CLICKHOUSE_DB: oracul
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-oracul_dev_2024}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - oracul-network
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          memory: 2G
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL - Airflow & Metabase Metadata
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: oracul_postgres
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init-metabase-db.sql:/docker-entrypoint-initdb.d/init-metabase-db.sql:ro
+    networks:
+      - oracul-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
+  # Zookeeper - Kafka Coordination
+  # ---------------------------------------------------------------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: oracul_zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+    networks:
+      - oracul-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
+  # Kafka - Message Streaming
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: oracul_kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      # Listeners
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9093,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      # Performance
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 168  # 7 days
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_COMPRESSION_TYPE: snappy
+
+      # JVM
+      KAFKA_HEAP_OPTS: "-Xmx1G -Xms1G"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - oracul-network
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+
+  # ---------------------------------------------------------------------------
+  # Kafka Init - Topic Creation (runs once and exits)
+  # ---------------------------------------------------------------------------
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: oracul_kafka_init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - oracul-network
+    volumes:
+      - ./kafka/init-topics.sh:/tmp/init-topics.sh:ro
+    command: bash /tmp/init-topics.sh
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Airflow Init - Database Setup (runs once and exits)
+  # ---------------------------------------------------------------------------
+  airflow-init:
+    <<: *airflow-common
+    container_name: oracul_airflow_init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        echo "Initializing Airflow database..."
+        airflow db init
+        airflow db upgrade
+
+        echo "Creating admin user..."
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@oracul.local || echo "User already exists"
+
+        echo "Airflow initialization complete!"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # ---------------------------------------------------------------------------
+  # Airflow Webserver - UI
+  # ---------------------------------------------------------------------------
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: oracul_airflow_webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+
+  # ---------------------------------------------------------------------------
+  # Airflow Scheduler - DAG Orchestration
+  # ---------------------------------------------------------------------------
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: oracul_airflow_scheduler
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob", "--hostname", "$${HOSTNAME}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+
+  # ---------------------------------------------------------------------------
+  # FastAPI - REST API
+  # ---------------------------------------------------------------------------
+  fastapi-api:
+    build:
+      context: ../../
+      dockerfile: api/Dockerfile
+    container_name: oracul_api
+    hostname: fastapi-api
+    ports:
+      - "8000:8000"
+    environment:
+      # ClickHouse connection
+      CLICKHOUSE_HOST: clickhouse-server
+      CLICKHOUSE_PORT: 9000
+      CLICKHOUSE_HTTP_PORT: 8123
+      CLICKHOUSE_DATABASE: oracul
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-oracul_dev_2024}
+
+      # API settings
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      API_WORKERS: 4
+      API_LOG_LEVEL: info
+      API_RELOAD: "true"
+
+      # CORS
+      CORS_ORIGINS: '["http://localhost:3000", "http://localhost:8080"]'
+
+      PYTHONPATH: /app
+    volumes:
+      - ../../api:/app
+      - ../../config:/config:ro
+    networks:
+      - oracul-network
+    depends_on:
+      clickhouse-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
+  # Metabase - BI Dashboards
+  # ---------------------------------------------------------------------------
+  metabase:
+    image: metabase/metabase:v0.48.0
+    container_name: oracul_metabase
+    hostname: metabase
+    ports:
+      - "3000:3000"
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabase
+      MB_DB_PORT: 5432
+      MB_DB_USER: airflow
+      MB_DB_PASS: airflow
+      MB_DB_HOST: postgres
+      MB_JETTY_HOST: 0.0.0.0
+      JAVA_TIMEZONE: UTC
+    volumes:
+      - metabase_data:/metabase-data
+    networks:
+      - oracul-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
