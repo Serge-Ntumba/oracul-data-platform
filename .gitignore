@@ -76,3 +76,10 @@ airflow-webserver.pid
 
 # Docker
 docker-compose.override.yml
+
+# Documentation (generated)
+docs/
+
+# Claude Code
+.claude/
+.agent/

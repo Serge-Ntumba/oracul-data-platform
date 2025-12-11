@@ -1,158 +1,269 @@
 # Getting Started with Oracul Platform
 
-## Overview
+Welcome to the Oracul Blockchain Data Platform! This guide will help you set up your local development environment and start building.
 
-This guide will help you get the Oracul Platform up and running on your local machine.
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Detailed Setup](#detailed-setup)
+- [Verifying Your Installation](#verifying-your-installation)
+- [Service Access](#service-access)
+- [Common Tasks](#common-tasks)
+- [Troubleshooting](#troubleshooting)
+- [Next Steps](#next-steps)
 
 ## Prerequisites
 
-### Required
-- Docker Desktop (or Docker + Docker Compose)
-- Python 3.11 or higher
-- Git
+Before you begin, ensure you have the following installed:
 
-### Optional but Recommended
-- ClickHouse CLI client
-- Kafka CLI tools
-- Make
-- Act (for testing GitHub Actions locally)
+### Required Software
 
-## Step-by-Step Setup
+| Software | Minimum Version | Purpose | Installation Link |
+|----------|----------------|---------|-------------------|
+| **Docker Desktop** | 4.20+ | Container runtime | [docker.com](https://www.docker.com/products/docker-desktop) |
+| **Python** | 3.9+ | Script execution & dev tools | [python.org](https://www.python.org/downloads/) |
+| **Git** | 2.30+ | Version control | [git-scm.com](https://git-scm.com/downloads) |
 
-### 1. Clone the Repository
+### System Requirements
+
+- **RAM:** 16GB recommended (8GB minimum)
+- **Disk Space:** 20GB free for Docker images and data
+- **OS:** macOS 11+, Ubuntu 22.04+, or Windows 10+ with WSL2
+
+### Python Packages (for development)
 
 ```bash
-cd /path/to/your/workspace
-git clone <repository-url> oracul-platform
+pip install cryptography  # For secret generation in bootstrap script
+```
+
+## Quick Start
+
+For experienced developers who want to get started immediately:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/your-org/oracul-platform.git
+cd oracul-platform
+
+# 2. Run the bootstrap script
+./scripts/bootstrap_dev.sh
+
+# 3. Access services
+# Airflow: http://localhost:8080 (admin/admin)
+# API: http://localhost:8000/docs
+# Metabase: http://localhost:3000
+```
+
+That's it! The bootstrap script handles everything automatically.
+
+## Detailed Setup
+
+### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/your-org/oracul-platform.git
 cd oracul-platform
 ```
 
-### 2. Set Up Python Environment
+### Step 2: Install Pre-commit Hooks (Optional but Recommended)
 
 ```bash
-# Create virtual environment
-python3 -m venv venv
+# Install pre-commit
+pip install pre-commit
 
-# Activate it
-source venv/bin/activate  # On macOS/Linux
-# or
-venv\Scripts\activate  # On Windows
+# Install git hooks
+pre-commit install
 
-# Install dependencies for all components
-pip install -r ingestion/requirements.txt
-pip install -r api/requirements.txt
-pip install -r pipelines/airflow_config/requirements.txt
+# Test the hooks
+pre-commit run --all-files
 ```
 
-### 3. Configure Environment Variables
+This ensures code quality by running formatters and linters before each commit.
+
+### Step 3: Configure Environment
+
+The bootstrap script will guide you through this, but if you want to configure manually:
 
 ```bash
-# Copy example environment file
-cp config/env/dev/.env.example config/env/dev/.env
+# Copy environment template
+cp config/env/dev/.env.example infra/docker-compose/.env
 
-# Edit with your values
-nano config/env/dev/.env
+# Edit the .env file
+nano infra/docker-compose/.env
+
+# IMPORTANT: Set your RPC URL
+# Find ALCHEMY_ETH_MAINNET_URL and replace with your actual URL
 ```
 
-Required variables:
-- `ALCHEMY_ETH_MAINNET_URL` - Your Alchemy or Infura RPC URL
-- `CLICKHOUSE_PASSWORD` - Choose a password for ClickHouse
-- `API_SECRET_KEY` - Generate a secret key for the API
-
-### 4. Start Infrastructure
+### Step 4: Run Bootstrap Script
 
 ```bash
-# Make scripts executable
-chmod +x scripts/*.sh
-
-# Bootstrap the development environment
 ./scripts/bootstrap_dev.sh
 ```
 
-This will:
-- Start ClickHouse, Kafka, Airflow, and the API
-- Create database tables
-- Load seed data (token metadata, chain info)
+This script will:
+- ✅ Check prerequisites (Docker, Python, etc.)
+- ✅ Create and configure `.env` file
+- ✅ Generate secrets (Fernet key, JWT secret, passwords)
+- ✅ Pull Docker images (~1.5GB download)
+- ✅ Start all 9 services (ClickHouse, Kafka, Airflow, API, etc.)
+- ✅ Wait for services to be healthy
+- ✅ Initialize databases and topics
+- ✅ Verify everything is working
 
-### 5. Verify Services
+**Expected time:** 3-5 minutes on first run, 1-2 minutes on subsequent runs.
 
-Check that all services are running:
+### Step 5: Verify Installation
 
-```bash
-# ClickHouse
-curl http://localhost:8123/ping
-
-# API
-curl http://localhost:8000/health
-
-# Airflow (open in browser)
-open http://localhost:8080  # macOS
-# Login: admin / admin
-```
-
-### 6. Load Sample Data
+The bootstrap script shows service health, but you can manually verify:
 
 ```bash
-# Load sample blocks and transfers for testing
-python scripts/load_sample_data.py
+# Run all verification tests
+./scripts/run_tests.sh integration
+
+# Or check individual services
+curl http://localhost:8080/health  # Airflow
+curl http://localhost:8000/docs    # API
+curl http://localhost:3000/api/health  # Metabase
+
+# ClickHouse CLI
+clickhouse-client --host localhost --port 9000
+> SHOW DATABASES;
+> USE oracul;
+> SHOW TABLES;  -- Should be empty in Phase 1
+> exit
 ```
 
-### 7. Start Data Ingestion (Optional)
+## Verifying Your Installation
+
+### Service Health Check
+
+View all running services:
 
 ```bash
-# Set your RPC URL
-export ALCHEMY_ETH_MAINNET_URL="https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY"
-
-# Run block scanner
-python -m ingestion.chains.eth_mainnet.block_scanner
+cd infra/docker-compose
+docker-compose -f docker-compose.dev.yml ps
 ```
 
-### 8. Explore the API
+You should see 9+ services with "healthy" status:
+- `oracul_clickhouse` - healthy
+- `oracul_postgres` - healthy
+- `oracul_zookeeper` - healthy
+- `oracul_kafka` - healthy
+- `oracul_airflow_webserver` - healthy
+- `oracul_airflow_scheduler` - healthy
+- `oracul_api` - healthy
+- `oracul_metabase` - healthy
 
-Open the interactive API documentation:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-Try some endpoints:
-```bash
-# Get health status
-curl http://localhost:8000/health
-
-# Get top tokens (requires sample data)
-curl "http://localhost:8000/tokens/top?limit=10"
-```
-
-### 9. Run Airflow DAGs
-
-1. Open Airflow UI: http://localhost:8080
-2. Enable DAGs:
-   - `token_metrics_daily`
-   - `anomaly_detection`
-3. Trigger manually or wait for scheduled runs
-
-### 10. Explore Analytics
+### Kafka Topics
 
 ```bash
-# Install Jupyter
-pip install jupyter pandas numpy matplotlib
-
-# Start Jupyter
-cd analytics
-jupyter notebook
-
-# Open notebooks/01_explore_erc20_transfers.ipynb
+cd infra/docker-compose
+docker-compose -f docker-compose.dev.yml exec kafka \
+  kafka-topics --bootstrap-server localhost:9092 --list
 ```
+
+Expected output:
+```
+eth.blocks.raw
+eth.logs.raw
+eth.transactions.raw
+market.prices.raw
+```
+
+### ClickHouse Database
+
+```bash
+clickhouse-client --host localhost --port 9000 --query "SHOW DATABASES"
+```
+
+Expected output should include:
+```
+oracul
+system
+default
+```
+
+## Service Access
+
+### Airflow
+
+- **URL:** http://localhost:8080
+- **Credentials:** `admin` / `admin`
+- **Purpose:** DAG management and monitoring
+- **What to check:**
+  - Homepage loads successfully
+  - No DAGs yet (expected in Phase 1)
+  - Will have DAGs in Phase 3+
+
+### API (FastAPI)
+
+- **URL:** http://localhost:8000
+- **API Docs:** http://localhost:8000/docs
+- **Health:** http://localhost:8000/health
+- **Purpose:** REST API for metrics and anomalies
+- **Note:** Endpoints may return empty data in Phase 1
+
+### Metabase
+
+- **URL:** http://localhost:3000
+- **First Visit:** Complete setup wizard
+- **Purpose:** BI dashboards and visualizations
+
+#### Metabase Setup Steps
+
+1. **Open** http://localhost:3000
+2. **Create account** (local only, not shared)
+3. **Add ClickHouse database:**
+   - Database type: **ClickHouse**
+   - Host: `clickhouse-server` (container name)
+   - Port: `8123` (HTTP port)
+   - Database: `oracul`
+   - Username: `default`
+   - Password: (check `infra/docker-compose/.env` for `CLICKHOUSE_PASSWORD`)
+4. **Test connection** and save
+
+### ClickHouse
+
+- **Native Protocol:** `localhost:9000`
+- **HTTP Interface:** `localhost:8123`
+- **CLI Access:**
+  ```bash
+  clickhouse-client --host localhost --port 9000
+  ```
+- **HTTP Query:**
+  ```bash
+  curl 'http://localhost:8123/?query=SELECT+1'
+  ```
+
+### Kafka
+
+- **Bootstrap Server:** `localhost:9092`
+- **Topics:** See "Kafka Topics" section above
+- **Access:**
+  ```bash
+  cd infra/docker-compose
+  docker-compose -f docker-compose.dev.yml exec kafka bash
+  ```
 
 ## Common Tasks
 
-### Stop Services
+### Starting Services
+
+```bash
+cd infra/docker-compose
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+### Stopping Services
 
 ```bash
 cd infra/docker-compose
 docker-compose -f docker-compose.dev.yml down
 ```
 
-### View Logs
+### Viewing Logs
 
 ```bash
 # All services
@@ -160,96 +271,201 @@ cd infra/docker-compose
 docker-compose -f docker-compose.dev.yml logs -f
 
 # Specific service
-docker-compose -f docker-compose.dev.yml logs -f clickhouse
+docker-compose -f docker-compose.dev.yml logs -f clickhouse-server
+docker-compose -f docker-compose.dev.yml logs -f kafka
+docker-compose -f docker-compose.dev.yml logs -f airflow-webserver
 ```
 
-### Query ClickHouse
+### Restarting a Service
 
 ```bash
-# Using CLI
-clickhouse-client --host localhost --port 9000
-
-# Example query
-SELECT count() FROM raw_blocks;
-SELECT * FROM erc20_transfers LIMIT 10;
+cd infra/docker-compose
+docker-compose -f docker-compose.dev.yml restart clickhouse-server
 ```
 
-### Run Tests
+### Running Tests
 
 ```bash
-# All tests
-pytest tests/
+# All tests (linters + unit + integration)
+./scripts/run_tests.sh
 
-# API tests only
-cd api && pytest tests/
-
-# Integration tests
-pytest tests/integration/
+# Specific test types
+./scripts/run_tests.sh lint         # Code quality only
+./scripts/run_tests.sh unit         # Unit tests only
+./scripts/run_tests.sh integration  # Integration tests only
 ```
 
-### Backfill Historical Data
+### Resetting the Environment
+
+If you need to start fresh:
 
 ```bash
-python scripts/backfill_erc20.py --start 18000000 --end 18001000 --chain 1
+cd infra/docker-compose
+
+# Stop and remove containers + volumes (DELETES ALL DATA)
+docker-compose -f docker-compose.dev.yml down -v
+
+# Restart from scratch
+cd ../..
+./scripts/bootstrap_dev.sh
+```
+
+### Updating Dependencies
+
+```bash
+# Update Python dependencies
+pip install -r requirements-dev.txt
+pip install -r api/requirements.txt
+pip install -r pipelines/airflow_config/requirements.txt
+
+# Pull latest Docker images
+cd infra/docker-compose
+docker-compose -f docker-compose.dev.yml pull
 ```
 
 ## Troubleshooting
 
-### ClickHouse Connection Issues
+### Port Conflicts
 
+**Error:** `Bind for 0.0.0.0:9000 failed: port is already allocated`
+
+**Solution:**
 ```bash
-# Check if ClickHouse is running
-docker ps | grep clickhouse
+# Check what's using the port
+lsof -i :9000
 
-# Restart ClickHouse
+# Kill the process or change port in docker-compose.dev.yml
+```
+
+### Docker Not Running
+
+**Error:** `Cannot connect to the Docker daemon`
+
+**Solution:**
+- Start Docker Desktop
+- Wait for it to fully initialize (green icon)
+- Try again
+
+### Out of Memory
+
+**Error:** Container exits with OOM error
+
+**Solution:**
+- Increase Docker Desktop memory to 12GB+
+- Settings → Resources → Memory
+- Apply & Restart
+
+### Services Not Healthy
+
+**Error:** Bootstrap script times out waiting for services
+
+**Solution:**
+```bash
+# Check service logs
 cd infra/docker-compose
-docker-compose -f docker-compose.dev.yml restart clickhouse
+docker-compose -f docker-compose.dev.yml logs [service-name]
+
+# Common issues:
+# - ClickHouse: Need more memory
+# - Kafka: Zookeeper not ready, wait longer
+# - Airflow: Database init failed, check postgres logs
 ```
 
-### Kafka Issues
+### ClickHouse Permission Denied
 
+**Error:** `DB::Exception: Cannot open file, Permission denied`
+
+**Solution:**
 ```bash
-# Check Kafka logs
-docker-compose -f infra/docker-compose/docker-compose.dev.yml logs kafka
-
-# List topics
-docker exec -it <kafka-container> kafka-topics --list --bootstrap-server localhost:9092
+# Reset ClickHouse volume
+cd infra/docker-compose
+docker-compose -f docker-compose.dev.yml down -v
+docker volume rm oracul_clickhouse_data
+docker-compose -f docker-compose.dev.yml up -d clickhouse-server
 ```
 
-### Port Already in Use
+### Kafka Topics Not Created
 
-If ports are already in use, edit `infra/docker-compose/docker-compose.dev.yml` to change port mappings.
+**Error:** Topics don't exist when running tests
 
-### Python Import Errors
-
-Make sure you're in the project root and have activated your virtual environment:
+**Solution:**
 ```bash
-cd /path/to/oracul-platform
-source venv/bin/activate
-export PYTHONPATH=$PWD
+# Check kafka-init logs
+cd infra/docker-compose
+docker-compose -f docker-compose.dev.yml logs kafka-init
+
+# Manually re-run init
+docker-compose -f docker-compose.dev.yml up kafka-init
+```
+
+### Airflow Webserver Won't Start
+
+**Error:** Airflow webserver is unhealthy
+
+**Solution:**
+```bash
+# Check if airflow-init completed
+docker-compose -f docker-compose.dev.yml logs airflow-init
+
+# Check webserver logs
+docker-compose -f docker-compose.dev.yml logs airflow-webserver
+
+# Restart airflow services
+docker-compose -f docker-compose.dev.yml restart airflow-init airflow-webserver airflow-scheduler
+```
+
+### Pre-commit Hooks Failing
+
+**Error:** `black`, `isort`, or `flake8` errors
+
+**Solution:**
+```bash
+# Auto-fix formatting issues
+black .
+isort .
+
+# Check what's wrong
+flake8 .
+
+# Skip hooks temporarily (not recommended)
+git commit --no-verify -m "message"
 ```
 
 ## Next Steps
 
-- Read [Architecture Overview](docs/architecture/high_level_overview.md)
-- Review [Architecture Decision Records](docs/adr/)
-- Check out [Product Requirements](docs/product/PRD_oracul_platform_v1.md)
-- Explore [Runbooks](docs/runbooks/) for operational guides
+Now that your environment is set up, you can:
+
+1. **Explore the codebase:**
+   - Read [CLAUDE.md](CLAUDE.md) for project guidelines
+   - Review [docs/architecture/](docs/architecture/) for system design
+   - Check [docs/product/](docs/product/) for requirements
+
+2. **Phase 1 is complete, but limited:**
+   - No ingestion collectors yet (Phase 2)
+   - No ClickHouse tables yet (Phase 2-3)
+   - No DAGs yet (Phase 3)
+   - No anomaly detection yet (Phase 4)
+
+3. **What you CAN do in Phase 1:**
+   - Explore Airflow UI
+   - Query ClickHouse (database exists, no tables)
+   - Test Kafka producers/consumers
+   - Create test dashboards in Metabase
+   - Write and run tests
+
+4. **Contribute:**
+   - Pick a task from Phase 2 roadmap
+   - Create a feature branch
+   - Write code with tests
+   - Submit a pull request
 
 ## Getting Help
 
-- Check documentation in `docs/`
-- Review code comments in each module
-- Open an issue on GitHub
-- Contact the team
+- **Documentation:** [docs/](docs/) directory
+- **Runbooks:** [docs/runbooks/](docs/runbooks/)
+- **Issues:** Create a GitHub issue
+- **Team:** Ask in #oracul-dev Slack channel
 
-## Quick Reference
+---
 
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| ClickHouse HTTP | http://localhost:8123 | - |
-| ClickHouse Native | localhost:9000 | oracul_user / (from .env) |
-| Kafka | localhost:9092 | - |
-| Airflow | http://localhost:8080 | admin / admin |
-| API | http://localhost:8000 | - |
-| API Docs | http://localhost:8000/docs | - |
+**Ready to build?** Your development environment is now fully operational. Happy coding! 🚀
