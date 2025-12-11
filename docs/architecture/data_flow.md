@@ -120,8 +120,8 @@ Raw data retained based on configurable policies:
 
 ### 4.1 Normalization Flow
 
-**DAG:** `normalize_erc20_dag`  
-**Schedule:** Every 15 minutes  
+**DAG:** `normalize_erc20_dag`
+**Schedule:** Every 15 minutes
 **Purpose:** Transform raw logs into structured ERC-20 transfer records
 
 ```
@@ -148,8 +148,8 @@ erc20_transfers
 
 ### 4.2 Aggregation Flows
 
-**DAG:** `token_metrics_daily_dag`  
-**Schedule:** Daily at 01:00 UTC  
+**DAG:** `token_metrics_daily_dag`
+**Schedule:** Daily at 01:00 UTC
 **Purpose:** Compute daily token-level metrics
 
 ```
@@ -171,8 +171,8 @@ token_metrics_daily
 
 ---
 
-**DAG:** `address_flows_daily_dag`  
-**Schedule:** Daily at 01:30 UTC  
+**DAG:** `address_flows_daily_dag`
+**Schedule:** Daily at 01:30 UTC
 **Purpose:** Compute daily address-level flow metrics
 
 ```
@@ -194,8 +194,8 @@ address_flows_daily
 
 ### 4.3 Anomaly Detection Flow
 
-**DAG:** `anomaly_detection_dag`  
-**Schedule:** Daily at 02:00 UTC  
+**DAG:** `anomaly_detection_dag`
+**Schedule:** Daily at 02:00 UTC
 **Purpose:** Identify anomalous token and address behaviors
 
 ```
@@ -229,8 +229,8 @@ anomalies
 
 ### 4.4 Data Quality Flow
 
-**DAG:** `data_quality_dag`  
-**Schedule:** Hourly  
+**DAG:** `data_quality_dag`
+**Schedule:** Hourly
 **Purpose:** Validate data freshness, completeness, and integrity
 
 ```

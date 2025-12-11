@@ -1,0 +1,82 @@
+# FastAPI configuration for Oracul platform
+# Settings for the REST API service
+
+api:
+  # Application metadata
+  title: "Oracul Blockchain Data Platform API"
+  description: "REST API for accessing blockchain metrics, anomalies, and token data"
+  version: "1.0.0"
+
+  # Server configuration
+  host: "${API_HOST:-0.0.0.0}"
+  port: "${API_PORT:-8000}"
+  workers: "${API_WORKERS:-4}"  # Number of Uvicorn workers
+
+  # Logging
+  log_level: "${LOG_LEVEL:-info}"  # debug, info, warning, error, critical
+  log_format: "json"  # "json" or "text"
+
+  # CORS (Cross-Origin Resource Sharing)
+  cors_origins:
+    - "http://localhost:3000"  # Local development frontend
+    - "http://localhost:8080"  # Airflow UI
+    # Add production domains here when deployed
+
+  cors_allow_credentials: true
+  cors_allow_methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+    - "OPTIONS"
+  cors_allow_headers:
+    - "*"
+
+  # Rate limiting (requests per minute per IP)
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 100
+    burst_size: 20  # Allow short bursts above rate
+
+  # Pagination defaults
+  pagination:
+    default_page_size: 50
+    max_page_size: 1000
+
+  # Query timeouts
+  timeouts:
+    database_query_seconds: 30
+    external_api_seconds: 10
+
+  # Authentication (for future implementation)
+  authentication:
+    enabled: false  # Disable for MVP (internal use only)
+    jwt_secret: "${API_JWT_SECRET}"
+    jwt_algorithm: "HS256"
+    access_token_expire_minutes: 60
+
+  # Health check endpoint
+  health_check:
+    path: "/health"
+    check_database: true
+    check_kafka: false  # Optional: check Kafka connectivity
+
+  # API documentation
+  docs:
+    enabled: true
+    swagger_ui_path: "/docs"
+    redoc_path: "/redoc"
+    openapi_path: "/openapi.json"
+
+  # Monitoring and metrics
+  monitoring:
+    enabled: true
+    metrics_path: "/metrics"
+    prometheus_enabled: true
+
+  # Cache settings (for future implementation)
+  cache:
+    enabled: false
+    backend: "redis"  # "redis" or "memory"
+    redis_url: "${REDIS_URL:-redis://localhost:6379/0}"
+    default_ttl_seconds: 300  # 5 minutes

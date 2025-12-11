@@ -1,0 +1,78 @@
+# Kafka configuration for Oracul platform
+# Defines topics, producer settings, and consumer settings for streaming data
+
+kafka:
+  # Kafka cluster connection
+  bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}"
+
+  # Topic definitions
+  topics:
+    # Raw blockchain data topics
+    blocks: "eth.blocks.raw"
+    transactions: "eth.transactions.raw"
+    logs: "eth.logs.raw"
+
+    # Market data topics
+    prices: "market.prices.raw"
+
+    # Future topics (commented out for now)
+    # normalized_transfers: "eth.erc20_transfers.normalized"
+    # anomalies: "anomalies.detected"
+
+  # Topic configuration (applied when creating topics)
+  topic_config:
+    partitions: 1  # Start with 1 partition for MVP; increase for production
+    replication_factor: 1  # 1 for dev, 3 for production
+    retention_ms: 604800000  # 7 days (in milliseconds)
+    compression_type: "snappy"
+    segment_ms: 86400000  # 1 day
+    cleanup_policy: "delete"  # "delete" or "compact"
+
+  # Producer configuration (used by collectors)
+  producer:
+    # Acknowledgment level: "0" (no ack), "1" (leader ack), "all" (all replicas ack)
+    acks: "all"
+
+    # Compression for network and disk efficiency
+    compression_type: "snappy"  # Options: none, gzip, snappy, lz4, zstd
+
+    # Batching settings for throughput optimization
+    linger_ms: 100  # Wait up to 100ms to batch messages
+    batch_size: 16384  # 16KB batch size
+
+    # Retry configuration
+    retries: 5
+    retry_backoff_ms: 1000
+
+    # Timeout settings
+    request_timeout_ms: 30000
+    max_block_ms: 60000
+
+    # Buffer settings
+    buffer_memory: 33554432  # 32MB
+
+  # Consumer configuration (used by loaders)
+  consumer:
+    # Consumer group ID
+    group_id: "oracul-loaders"
+
+    # Offset management
+    auto_offset_reset: "earliest"  # "earliest", "latest", or "none"
+    enable_auto_commit: false  # Manual commit for exactly-once processing
+
+    # Polling configuration
+    max_poll_records: 500  # Number of records per poll
+    max_poll_interval_ms: 300000  # 5 minutes
+
+    # Session and heartbeat
+    session_timeout_ms: 10000
+    heartbeat_interval_ms: 3000
+
+    # Fetch settings
+    fetch_min_bytes: 1
+    fetch_max_wait_ms: 500
+
+  # Monitoring and metrics
+  monitoring:
+    metrics_enabled: true
+    jmx_port: 9999

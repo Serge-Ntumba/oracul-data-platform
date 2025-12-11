@@ -1,16 +1,16 @@
 # Oracul Blockchain Data Platform – Roadmap & Execution Plan (v1)
 
-Owner: Principal Data Platform Architect  
+Owner: Principal Data Platform Architect
 Status: Draft – to be agreed by Data Platform / DevOps / DS/DA leads
 
-This roadmap is based on the PRD for **Oracul Blockchain Data Platform v1**.  
+This roadmap is based on the PRD for **Oracul Blockchain Data Platform v1**.
 Target outcome: a production-ready MVP that ingests Ethereum on-chain + spot price data, builds ERC-20 level metrics, runs anomaly detection, and exposes data via BI + internal API + alerts.
 
 ---
 
 ## 0. Principles & Expectations
 
-- **Single source of truth**: This document + PRD define *what* we build.  
+- **Single source of truth**: This document + PRD define *what* we build.
 - **Thin orchestration, thick components**: Airflow DAGs should just orchestrate; business logic lives in libs/jobs.
 - **Everything as code**: Infra, schemas, migrations, configs, DAGs – all in Git.
 - **Minimal surprises**: If something is unclear, first check PRD + roadmap; then propose a concrete solution in a PR, not a vague question.
@@ -65,7 +65,7 @@ Weeks are indicative; we optimize once we know actual capacity.
 
 ### 2.2. Roles
 
-- **Lead:** Principal Data Platform Architect  
+- **Lead:** Principal Data Platform Architect
 - **Support:** 1 Senior Data Engineer, 1 DevOps engineer
 
 ### 2.3. Definition of Done (DoD)
@@ -128,7 +128,7 @@ Weeks are indicative; we optimize once we know actual capacity.
 
 ### 3.2. Roles
 
-- **Lead:** DevOps Engineer  
+- **Lead:** DevOps Engineer
 - **Support:** 1–2 Data Engineers
 
 ### 3.3. DoD

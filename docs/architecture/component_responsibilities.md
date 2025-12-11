@@ -587,5 +587,5 @@ severity_thresholds:
 
 ---
 
-*Document Version: 1.0*  
+*Document Version: 1.0*
 *Last Updated: MVP Planning Phase*

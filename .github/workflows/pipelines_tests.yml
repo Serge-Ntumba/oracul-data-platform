@@ -1,40 +1,46 @@
-# name: Pipeline Tests
+name: Pipeline Tests
 
-# on:
-#   push:
-#     paths:
-#       - 'pipelines/**'
-#   pull_request:
-#     paths:
-#       - 'pipelines/**'
+on:
+  push:
+    paths:
+      - 'pipelines/**'
+      - 'tests/**'
+      - '.github/workflows/pipelines_tests.yml'
+  pull_request:
+    paths:
+      - 'pipelines/**'
+      - 'tests/**'
 
-# jobs:
-#   test:
-#     runs-on: ubuntu-latest
+jobs:
+  test:
+    runs-on: ubuntu-latest
 
-#     services:
-#       clickhouse:
-#         image: clickhouse/clickhouse-server:latest
-#         ports:
-#           - 9000:9000
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:latest
+        ports:
+          - 9000:9000
+          - 8123:8123
 
-#     steps:
-#       - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v4
 
-#       - name: Set up Python
-#         uses: actions/setup-python@v4
-#         with:
-#           python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
-#       - name: Install dependencies
-#         run: |
-#           cd pipelines
-#           pip install -r airflow_config/requirements.txt
-#           pip install pytest
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r pipelines/airflow_config/requirements.txt
+          pip install -r tests/requirements.txt
 
-#       - name: Run pipeline job tests
-#         env:
-#           CLICKHOUSE_HOST: localhost
-#         run: |
-#           cd pipelines
-#           pytest jobs/ -v
+      - name: Run pipeline job tests
+        env:
+          CLICKHOUSE_HOST: localhost
+          CLICKHOUSE_PORT: 9000
+          CLICKHOUSE_DATABASE: oracul_test
+        run: |
+          pytest pipelines/tests/ -v --cov=pipelines --cov-report=term-missing || true

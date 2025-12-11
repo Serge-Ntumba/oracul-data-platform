@@ -1,0 +1,30 @@
+# Development and code quality tools
+
+# Code formatting
+black==23.11.0
+isort==5.12.0
+
+# Linting
+flake8==6.1.0
+flake8-docstrings==1.7.0
+flake8-bugbear==23.11.28
+
+# Type checking
+mypy==1.7.0
+types-requests==2.31.0.10
+types-PyYAML==6.0.12.12
+
+# Pre-commit hooks
+pre-commit==3.5.0
+
+# Documentation
+sphinx==7.2.6
+sphinx-rtd-theme==2.0.0
+
+# Testing tools (also in tests/requirements.txt, but useful for dev)
+pytest==7.4.3
+pytest-cov==4.1.0
+
+# Interactive development
+ipython==8.18.0
+ipdb==0.13.13

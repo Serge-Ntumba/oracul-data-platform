@@ -1,0 +1,59 @@
+# Blockchain chain configurations for Oracul platform
+# This file defines RPC endpoints, block parameters, and retry logic for each supported chain
+
+chains:
+  eth_mainnet:
+    # Chain identification
+    chain_id: 1
+    name: "Ethereum Mainnet"
+
+    # RPC configuration
+    rpc_url: "${ALCHEMY_ETH_MAINNET_URL}"  # Load from environment variable
+    rpc_timeout_seconds: 30
+
+    # Block processing parameters
+    block_time_seconds: 12  # Average time between blocks
+    confirmations_required: 12  # Wait for N confirmations before considering block final
+    start_block: 18000000  # Starting block for initial ingestion (configurable)
+    max_block_range_per_request: 100  # Maximum number of blocks to fetch in one request
+
+    # Retry configuration for RPC failures
+    retry_config:
+      max_retries: 5
+      backoff_factor: 2  # Exponential backoff: 1s, 2s, 4s, 8s, 16s
+      initial_delay_seconds: 1
+      max_delay_seconds: 60
+
+    # Rate limiting (requests per second)
+    rate_limit:
+      requests_per_second: 10  # Adjust based on RPC provider tier
+      burst_size: 20  # Allow short bursts above rate limit
+
+    # Batch processing
+    batch_config:
+      blocks_per_batch: 100
+      transactions_per_batch: 500
+      logs_per_batch: 1000
+
+  # Example configuration for adding another chain in the future
+  # polygon_mainnet:
+  #   chain_id: 137
+  #   name: "Polygon Mainnet"
+  #   rpc_url: "${ALCHEMY_POLYGON_MAINNET_URL}"
+  #   rpc_timeout_seconds: 30
+  #   block_time_seconds: 2
+  #   confirmations_required: 128
+  #   start_block: 45000000
+  #   max_block_range_per_request: 500
+  #   retry_config:
+  #     max_retries: 5
+  #     backoff_factor: 2
+  #     initial_delay_seconds: 1
+  #     max_delay_seconds: 60
+  #   rate_limit:
+  #     requests_per_second: 20
+  #     burst_size: 40
+  #   batch_config:
+  #     blocks_per_batch: 500
+  #     transactions_per_batch: 1000
+  #     logs_per_batch: 5000

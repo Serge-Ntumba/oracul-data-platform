@@ -1,0 +1,181 @@
+# ERC-20 token metadata configuration for Oracul platform
+# Defines tracked tokens for price collection and metric computation
+
+tokens:
+  # Top tracked tokens for price monitoring and anomaly detection
+  tracked_tokens:
+    # Stablecoins
+    - symbol: "USDT"
+      name: "Tether USD"
+      address: "0xdac17f958d2ee523a2206206994597c13d831ec7"
+      decimals: 6
+      coingecko_id: "tether"
+      category: "stablecoin"
+      priority: "high"  # high, medium, low
+
+    - symbol: "USDC"
+      name: "USD Coin"
+      address: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+      decimals: 6
+      coingecko_id: "usd-coin"
+      category: "stablecoin"
+      priority: "high"
+
+    - symbol: "DAI"
+      name: "Dai Stablecoin"
+      address: "0x6b175474e89094c44da98b954eedeac495271d0f"
+      decimals: 18
+      coingecko_id: "dai"
+      category: "stablecoin"
+      priority: "high"
+
+    - symbol: "BUSD"
+      name: "Binance USD"
+      address: "0x4fabb145d64652a948d72533023f6e7a623c7c53"
+      decimals: 18
+      coingecko_id: "binance-usd"
+      category: "stablecoin"
+      priority: "medium"
+
+    # Wrapped tokens
+    - symbol: "WETH"
+      name: "Wrapped Ether"
+      address: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+      decimals: 18
+      coingecko_id: "weth"
+      category: "wrapped"
+      priority: "high"
+
+    - symbol: "WBTC"
+      name: "Wrapped Bitcoin"
+      address: "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
+      decimals: 8
+      coingecko_id: "wrapped-bitcoin"
+      category: "wrapped"
+      priority: "high"
+
+    # DeFi tokens
+    - symbol: "UNI"
+      name: "Uniswap"
+      address: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
+      decimals: 18
+      coingecko_id: "uniswap"
+      category: "defi"
+      priority: "high"
+
+    - symbol: "LINK"
+      name: "Chainlink"
+      address: "0x514910771af9ca656af840dff83e8264ecf986ca"
+      decimals: 18
+      coingecko_id: "chainlink"
+      category: "oracle"
+      priority: "high"
+
+    - symbol: "AAVE"
+      name: "Aave Token"
+      address: "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9"
+      decimals: 18
+      coingecko_id: "aave"
+      category: "defi"
+      priority: "medium"
+
+    - symbol: "COMP"
+      name: "Compound"
+      address: "0xc00e94cb662c3520282e6f5717214004a7f26888"
+      decimals: 18
+      coingecko_id: "compound-governance-token"
+      category: "defi"
+      priority: "medium"
+
+    - symbol: "MKR"
+      name: "Maker"
+      address: "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2"
+      decimals: 18
+      coingecko_id: "maker"
+      category: "defi"
+      priority: "medium"
+
+    - symbol: "CRV"
+      name: "Curve DAO Token"
+      address: "0xd533a949740bb3306d119cc777fa900ba034cd52"
+      decimals: 18
+      coingecko_id: "curve-dao-token"
+      category: "defi"
+      priority: "medium"
+
+    # Layer 2 / Scaling tokens
+    - symbol: "MATIC"
+      name: "Polygon"
+      address: "0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0"
+      decimals: 18
+      coingecko_id: "matic-network"
+      category: "l2"
+      priority: "medium"
+
+    - symbol: "OP"
+      name: "Optimism"
+      address: "0x4200000000000000000000000000000000000042"  # Native on Optimism, bridged token address may differ
+      decimals: 18
+      coingecko_id: "optimism"
+      category: "l2"
+      priority: "low"
+
+    # Exchange tokens
+    - symbol: "BNB"
+      name: "Binance Coin (Bridged)"
+      address: "0xb8c77482e45f1f44de1745f52c74426c631bdd52"
+      decimals: 18
+      coingecko_id: "binancecoin"
+      category: "exchange"
+      priority: "medium"
+
+    # Other popular tokens
+    - symbol: "SHIB"
+      name: "Shiba Inu"
+      address: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+      decimals: 18
+      coingecko_id: "shiba-inu"
+      category: "meme"
+      priority: "low"
+
+    - symbol: "APE"
+      name: "ApeCoin"
+      address: "0x4d224452801aced8b2f0aebe155379bb5d594381"
+      decimals: 18
+      coingecko_id: "apecoin"
+      category: "nft"
+      priority: "low"
+
+  # Price collection configuration
+  price_collection:
+    update_frequency_seconds: 60  # Poll every 60 seconds
+    retry_on_failure: true
+    max_retries: 3
+    retry_delay_seconds: 5
+
+    # CoinGecko API configuration
+    coingecko:
+      enabled: true
+      api_key: "${COINGECKO_API_KEY}"
+      base_url: "https://api.coingecko.com/api/v3"
+      rate_limit_per_minute: 50  # Free tier: 50 calls/min
+      vs_currencies:
+        - "usd"
+        - "eth"  # Optional: also track prices in ETH
+
+  # Token metadata refresh (for adding new tokens dynamically)
+  metadata_refresh:
+    enabled: false  # Disable for MVP; enable for production
+    refresh_interval_hours: 24
+    source: "etherscan"  # "etherscan" or "blockchain_rpc"
+
+  # Filters for anomaly detection
+  anomaly_detection:
+    # Only run anomaly detection on high/medium priority tokens
+    min_priority: "medium"
+
+    # Minimum daily volume (USD) to consider for anomaly detection
+    min_daily_volume_usd: 10000
+
+    # Minimum unique addresses to consider
+    min_unique_addresses: 10

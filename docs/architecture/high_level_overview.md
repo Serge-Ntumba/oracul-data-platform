@@ -103,19 +103,19 @@ Oracul solves this by providing a **proper data platform**.
 
 ## Key Use Cases (MVP)
 
-1. **Token Anomaly Detection**  
+1. **Token Anomaly Detection**
    Identify tokens with abnormal volume or active addresses
 
-2. **Address Anomaly Detection**  
+2. **Address Anomaly Detection**
    Flag addresses with unusual inflow/outflow patterns
 
-3. **Ad-Hoc Analysis**  
+3. **Ad-Hoc Analysis**
    Query historical ERC-20 transfers, identify whale addresses
 
-4. **Daily Monitoring**  
+4. **Daily Monitoring**
    Dashboard summary of volumes, anomaly counts, top movers
 
-5. **Engineering Health**  
+5. **Engineering Health**
    Monitor ingestion lag, data quality, pipeline status
 
 ---
@@ -210,5 +210,5 @@ The following require stakeholder input before finalizing:
 
 ---
 
-*Document Version: 1.0 (MVP Draft)*  
+*Document Version: 1.0 (MVP Draft)*
 *Owner: Principal Data Platform Architect*

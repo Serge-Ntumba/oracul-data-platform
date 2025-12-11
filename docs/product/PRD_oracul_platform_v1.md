@@ -937,4 +937,3 @@ This is just a skeleton; PM/EM can refine.
 4. Preferred BI tool (Superset vs Metabase) and who owns dashboard maintenance?
 
 5. Where do we run this stack (cloud provider / region / on-prem)?
-

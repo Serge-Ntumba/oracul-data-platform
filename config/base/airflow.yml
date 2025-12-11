@@ -1,0 +1,137 @@
+# Airflow configuration for Oracul platform
+# Orchestration settings for DAGs and task execution
+
+airflow:
+  # Core configuration
+  dags_folder: "/opt/airflow/dags"
+  base_log_folder: "/opt/airflow/logs"
+  plugins_folder: "/opt/airflow/plugins"
+
+  # Executor configuration
+  executor: "LocalExecutor"  # Options: SequentialExecutor, LocalExecutor, CeleryExecutor, KubernetesExecutor
+  # Note: Use LocalExecutor for MVP; upgrade to CeleryExecutor for production scaling
+
+  # Scheduler configuration
+  scheduler:
+    catchup_by_default: false  # Don't backfill by default
+    max_active_runs_per_dag: 1  # Limit concurrent DAG runs
+    dag_dir_list_interval: 60  # How often to scan for new DAGs (seconds)
+    min_file_process_interval: 30  # Minimum interval between file parsing (seconds)
+    parsing_processes: 2  # Number of DAG parsing processes
+
+  # Timezone configuration
+  default_timezone: "UTC"
+  schedule_timezone: "UTC"
+
+  # DAG defaults (applied to all DAGs unless overridden)
+  dag_defaults:
+    # Retry configuration
+    retries: 2
+    retry_delay_minutes: 5
+    retry_exponential_backoff: false
+
+    # Notifications
+    email_on_failure: true
+    email_on_retry: false
+    email_on_success: false
+    email: ["${AIRFLOW_ALERT_EMAIL:-data-platform@example.com}"]
+
+    # Execution
+    depends_on_past: false
+    wait_for_downstream: false
+
+    # SLA (Service Level Agreement) - Optional
+    # sla_seconds: 3600  # Alert if task doesn't complete within 1 hour
+
+    # Task concurrency
+    max_active_tasks: 16
+    max_active_runs: 1
+
+  # Web server configuration
+  webserver:
+    base_url: "http://localhost:8080"
+    expose_config: true
+    enable_proxy_fix: false
+    rbac: true  # Enable role-based access control
+
+  # Database configuration
+  database:
+    sql_alchemy_conn: "${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN:-postgresql+psycopg2://airflow:airflow@postgres:5432/airflow}"
+    sql_alchemy_pool_size: 5
+    sql_alchemy_max_overflow: 10
+
+  # Celery configuration (for CeleryExecutor - not used in MVP)
+  celery:
+    broker_url: "${AIRFLOW__CELERY__BROKER_URL:-redis://localhost:6379/0}"
+    result_backend: "${AIRFLOW__CELERY__RESULT_BACKEND:-db+postgresql://airflow:airflow@postgres:5432/airflow}"
+    worker_concurrency: 16
+
+  # Logging configuration
+  logging:
+    base_log_folder: "/opt/airflow/logs"
+    remote_logging: false
+    remote_base_log_folder: ""  # S3 path for remote logging (if enabled)
+    logging_level: "INFO"
+    fab_logging_level: "WARNING"
+    colored_console_log: true
+    log_format: "[%%(asctime)s] {%%(filename)s:%%(lineno)d} %%(levelname)s - %%(message)s"
+    simple_log_format: "%%(asctime)s %%(levelname)s - %%(message)s"
+
+  # Security
+  security:
+    fernet_key: "${AIRFLOW__CORE__FERNET_KEY}"  # Used for encrypting credentials in database
+    secret_key: "${AIRFLOW__WEBSERVER__SECRET_KEY}"  # Used for session management
+
+  # Performance tuning
+  performance:
+    # Parallelism - total number of task instances that can run across the entire cluster
+    parallelism: 32
+
+    # DAG concurrency - max number of task instances allowed to run concurrently per DAG
+    dag_concurrency: 16
+
+    # Max active tasks per DAG run
+    max_active_tasks_per_dag: 16
+
+    # Parsing
+    min_serialized_dag_update_interval: 30
+    min_serialized_dag_fetch_interval: 10
+
+  # Task configuration
+  task:
+    default_task_retries: 2
+    default_task_execution_timeout: 3600  # 1 hour
+    default_queue: "default"
+
+  # Monitoring and alerting
+  monitoring:
+    health_check_enabled: true
+    statsd_on: false  # Enable StatsD for metrics (if needed)
+    statsd_host: "localhost"
+    statsd_port: 8125
+    statsd_prefix: "airflow"
+
+  # Email configuration (for alerts)
+  email:
+    email_backend: "airflow.utils.email.send_email_smtp"
+    smtp_host: "${AIRFLOW_SMTP_HOST:-smtp.gmail.com}"
+    smtp_port: "${AIRFLOW_SMTP_PORT:-587}"
+    smtp_starttls: true
+    smtp_ssl: false
+    smtp_user: "${AIRFLOW_SMTP_USER}"
+    smtp_password: "${AIRFLOW_SMTP_PASSWORD}"
+    smtp_mail_from: "${AIRFLOW_SMTP_FROM:-airflow@oracul.com}"
+
+  # Oracul-specific DAG schedules
+  dag_schedules:
+    # Data ingestion and normalization
+    normalize_erc20: "*/15 * * * *"  # Every 15 minutes
+
+    # Daily aggregation pipelines
+    token_metrics_daily: "0 1 * * *"  # 01:00 UTC
+    address_flows_daily: "30 1 * * *"  # 01:30 UTC
+    anomaly_detection: "0 2 * * *"  # 02:00 UTC
+
+    # Monitoring and quality checks
+    data_quality: "0 * * * *"  # Hourly
+    ingestion_monitoring: "*/5 * * * *"  # Every 5 minutes

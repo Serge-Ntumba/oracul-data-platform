@@ -1,0 +1,95 @@
+# ClickHouse configuration for Oracul platform
+# Connection settings, query parameters, and performance tuning
+
+clickhouse:
+  # Connection parameters
+  host: "${CLICKHOUSE_HOST:-localhost}"
+  port: "${CLICKHOUSE_PORT:-9000}"  # Native protocol port
+  http_port: "${CLICKHOUSE_HTTP_PORT:-8123}"  # HTTP interface port
+
+  # Authentication
+  database: "${CLICKHOUSE_DATABASE:-oracul}"
+  user: "${CLICKHOUSE_USER:-default}"
+  password: "${CLICKHOUSE_PASSWORD}"
+
+  # Connection pool settings
+  connection_pool_size: 10
+  connection_timeout_seconds: 10
+  send_timeout_seconds: 300
+  receive_timeout_seconds: 300
+
+  # Query configuration
+  query_timeout_seconds: 300  # 5 minutes for complex analytical queries
+  max_query_size: 262144  # 256KB max query size
+  max_execution_time: 300  # Maximum execution time in seconds
+
+  # Performance settings
+  settings:
+    # Memory limits
+    max_memory_usage: 10000000000  # 10GB per query
+    max_memory_usage_for_user: 20000000000  # 20GB per user
+
+    # Thread settings
+    max_threads: 4  # Use 4 threads per query (adjust based on CPU cores)
+
+    # Insert settings
+    max_insert_block_size: 1048576  # 1M rows per insert block
+    min_insert_block_size_rows: 1048576
+    min_insert_block_size_bytes: 268435456  # 256MB
+
+    # Compression
+    network_compression_method: "lz4"
+    log_queries: 1  # Enable query logging
+
+    # Merge settings
+    max_bytes_to_merge_at_max_space_in_pool: 161061273600  # 150GB
+
+  # Retry configuration for connection failures
+  retry_config:
+    max_retries: 3
+    initial_delay_seconds: 1
+    backoff_factor: 2
+
+  # Cluster configuration (for distributed setups - not used in MVP)
+  # cluster:
+  #   enabled: false
+  #   cluster_name: "oracul_cluster"
+  #   shards:
+  #     - host: "clickhouse-shard1"
+  #       port: 9000
+  #     - host: "clickhouse-shard2"
+  #       port: 9000
+
+  # Table-specific configurations
+  tables:
+    # Partition retention policies (TTL)
+    retention:
+      raw_blocks: 90  # Keep raw blocks for 90 days
+      raw_transactions: 90
+      raw_logs: 90
+      prices_spot: 365  # Keep prices for 1 year
+      erc20_transfers: 365  # Keep transfers for 1 year
+      token_metrics_daily: 1825  # Keep daily metrics for 5 years
+      address_flows_daily: 1825
+      anomalies: 730  # Keep anomalies for 2 years
+      data_quality_checks: 90  # Keep quality checks for 90 days
+
+    # Partitioning strategy (all tables partitioned by date)
+    partition_by: "toDate(timestamp)"
+
+    # Order by keys (optimize for common query patterns)
+    order_by:
+      raw_blocks: "(chain, block_number)"
+      raw_transactions: "(chain, block_number, tx_index)"
+      raw_logs: "(chain, block_number, log_index)"
+      prices_spot: "(symbol, ts)"
+      erc20_transfers: "(chain, token_address, block_number, log_index)"
+      token_metrics_daily: "(chain, token_address, date)"
+      address_flows_daily: "(chain, address, date)"
+      anomalies: "(entity_type, entity_id, ts)"
+
+  # Monitoring
+  monitoring:
+    enabled: true
+    metrics_port: 9363  # Prometheus exporter port
+    system_tables_enabled: true
