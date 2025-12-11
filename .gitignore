@@ -84,3 +84,4 @@ docs
 # Claude Code
 .claude/
 .agent/
+CLAUDE.md
